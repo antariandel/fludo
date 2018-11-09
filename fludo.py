@@ -2,77 +2,103 @@
 
 class Liquid:
     ''' Volume in ml, pg in percentage. '''
-    def __init__(self, volume, pg=50):
-        if type(volume) not in [int, float]:
+    def __init__(self, ml, pg=50):
+        if type(ml) not in [int, float]:
             raise TypeError('Volume has to be either int or float!')
         if type(pg) not in [int, float]:
             raise TypeError('PG percent has to be either int or float!')
-        self.volume = volume
+        
+        self.ml = ml
         self.pg = max(0, min(pg, 100)) # clamp to 0..100
         self.vg = 100 - self.pg
-        self._total_pgml = self.volume * (self.pg / 100)
-        self._total_vgml = self.volume - self._total_pgml
-    
-    def add(self, liquid):
-        if type(liquid) != Liquid:
-            raise TypeError('Can only add Liquid types to Liquid!')
-        self.volume += liquid.volume
-        if self.volume <= 0:
-            raise ValueError('Volume has to be greater than 0!')
-        self._total_pgml += liquid._total_pgml
-        self._total_vgml += liquid._total_vgml
-        self.pg = (self._total_pgml / self.volume) * 100
-        self.vg = 100 - self.pg
-        return self
+        self.total_pgml = self.ml * (self.pg / 100)
+        self.total_vgml = self.ml - self.total_pgml
 
 
 class NicBase(Liquid):
     ''' Concentration in mg/ml '''
-    def __init__(self, volume, pg=50, nic=6):
+    def __init__(self, ml, pg=50, nic=6):
         if type(nic) not in [int, float]:
-            raise TypeError('Nic has to be either int or float!') 
-        super().__init__(volume, pg)
+            raise TypeError('Nic has to be either int or float!')
+        
+        super().__init__(ml, pg)
+
         self.nic = nic
         if self.nic < 0:
             raise ValueError('Nicotine concentration can not be smaller than 0!')
-        self._total_nicmg = nic * volume
+        
+        # Calc nicotine mass
+        self.total_nicmg = nic * ml
 
 
 class Aroma(Liquid):
-    def __init__(self, volume, pg=50, name='aroma'):
+    def __init__(self, ml, pg=50, name='aroma'):
         if type(name) != str:
             raise TypeError('Name has to be a string!')
-        super().__init__(volume, pg)
+        
+        super().__init__(ml, pg)
+
         self.name = name
 
 
 class Recipe(Liquid):
-    def __init__(self, volume=0, pg=50):
-        super().__init__(volume, pg)
+    def __init__(self, *components):
+        super().__init__(0)
+
         self.nic = 0
-        self._total_nicmg = 0
-        self.aromas_volume = {}
+        self.total_nicmg = 0
+        self.aromas_ml = {}
         self.aromas_percent = {}
+
+        # Add liquids if got as arguments
+        if components:
+            for any_liquid in components:
+                self.add(any_liquid)
     
-    def add(self, any_liquid):
-        if type(any_liquid) not in [Liquid, NicBase, Aroma, Recipe]:
-            raise TypeError('Can only add Liquid, NicBase, Aroma and Mix types!')
-        super().add(any_liquid)
-        if type(any_liquid) == NicBase:
-            self._total_nicmg += any_liquid.nic * any_liquid.volume
-        elif type(any_liquid) == Aroma:
-            if any_liquid.name in self.aromas_volume:
-                self.aromas_volume[any_liquid.name] += any_liquid.volume
+    def add(self, *components):
+        for component in components:
+            if type(component) not in [Liquid, NicBase, Aroma, Recipe]:
+                raise TypeError('Can only add Liquid, NicBase, Aroma and Mix types!')
+            
+            # Volume addition and PG/VG recalculation
+            self.ml += component.ml
+            self.total_pgml += component.total_pgml
+            self.total_vgml += component.total_vgml
+            if self.ml > 0:
+                self.pg = (self.total_pgml / self.ml) * 100
+                self.vg = 100 - self.pg
             else:
-                self.aromas_volume[any_liquid.name] = any_liquid.volume
-        elif type(any_liquid) == Recipe:
-            self._total_nicmg += any_liquid.nic * any_liquid.volume
-            for aroma in any_liquid.aromas_volume:
-                if aroma in self.aromas_volume:
-                    self.aromas_volume[aroma] += any_liquid.aromas_volume['aroma'].volume
+                self.pg, self.vg = 50, 50
+
+            # NicBase only: Nicotine mass addition
+            if type(component) == NicBase:
+                self.total_nicmg += component.total_nicmg
+            
+            # Aroma only: Aroma names addition and per-aroma volume recalculation
+            elif type(component) == Aroma:
+                if component.name in self.aromas_ml:
+                    self.aromas_ml[component.name] += component.ml
                 else:
-                    self.aromas_volume[aroma] = any_liquid.aromas_volume['aroma'].volume
-        self.nic = self._total_nicmg / self.volume
-        for aroma in self.aromas_volume:
-            self.aromas_percent[aroma] = (self.aromas_volume[aroma] / self.volume) * 100
+                    self.aromas_ml[component.name] = component.ml
+            
+            # Recipe only: Nicotine mass and aroma volume additions
+            elif type(component) == Recipe:
+                self.total_nicmg += component.total_nicmg
+                for aroma in component.aromas_volume:
+                    if aroma in self.aromas_ml:
+                        self.aromas_ml[aroma] += component.aromas_ml['aroma']
+                    else:
+                        self.aromas_ml[aroma] = component.aromas_ml['aroma']
+            
+            # Recalculate nicotine concentration in total volume
+            self.nic = self.total_nicmg / self.ml
+
+            # Recalculate aromas percentage in relation to total volume
+            for aroma in self.aromas_ml:
+                self.aromas_percent[aroma] = (self.aromas_ml[aroma] / self.ml) * 100
         return self
+    
+    def pour(self, amount):
+        ''' Returns amount of volume from the recipe with the same ratio of components '''
+        # TODO: Create this
+        pass
