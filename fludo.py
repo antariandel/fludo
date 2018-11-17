@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 class Liquid:
-    ''' Volume in ml, pg in percentage. '''
+    ''' Liquid made of PG and VG. Has volume in ml, PG in percentage and VG calculated. '''
     def __init__(self, ml, pg=50):
         if type(ml) not in [int, float]:
             raise TypeError('Volume has to be either int or float!')
@@ -13,13 +13,16 @@ class Liquid:
         self.vg = 100 - self.pg
         self.total_pgml = self.ml * (self.pg / 100)
         self.total_vgml = self.ml - self.total_pgml
+    
+    def __str__(self):
+        return '%sml Base %sPG/%sVG' % (self.ml, self.pg, self.vg)
 
 
 class NicBase(Liquid):
-    ''' Concentration in mg/ml '''
+    ''' Inherits Liquid. Adds nicotine concentration in mg/ml. '''
     def __init__(self, ml, pg=50, nic=6):
         if type(nic) not in [int, float]:
-            raise TypeError('Nic has to be either int or float!')
+            raise TypeError('Nicotine concentration has to be either int or float!')
         
         super().__init__(ml, pg)
 
@@ -32,7 +35,8 @@ class NicBase(Liquid):
 
 
 class Aroma(Liquid):
-    def __init__(self, ml, pg=50, name='aroma'):
+    ''' Inherits Liquid. Has name. '''
+    def __init__(self, ml, pg=50, name='Unnamed'):
         if type(name) != str:
             raise TypeError('Name has to be a string!')
         
