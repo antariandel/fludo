@@ -1,108 +1,188 @@
 #!/usr/bin/env python
 
+
 class Liquid:
-    ''' Liquid made of PG and VG. Has volume in ml, PG in percentage and VG calculated. '''
-    def __init__(self, ml, pg=50):
+    ''' Liquid made of PG and VG (and/or water), optional nicotine concentration in mg/ml and optional name.
+If only PG or VG are given, the other is implicitly calculated to give 100 percent.
+If both are given, then the sum of the two can't exceed 100 percent, but if it's less, the rest is considered to be water.
+Use PG = VG = 0 to make pure water. '''
+    def __init__(self, ml=0, nic=0, name='', **kwargs):
+        # Check arguments
         if type(ml) not in [int, float]:
-            raise TypeError('Volume has to be either int or float!')
-        if type(pg) not in [int, float]:
-            raise TypeError('PG percent has to be either int or float!')
+            raise TypeError('Volume (ml) has to be either int or float, but given: %s' % str(type(ml)))
+        if ml < 0:
+            raise ValueError('Volume (ml) has to be a positive number, but given: %s' % ml)
+        
+        try:
+            if type(kwargs['pg']) not in [int, float]:
+                raise TypeError('PG percentage has to be either int or float, but given: %s' % str(type(kwargs['pg'])))
+            if kwargs['pg'] < 0 or kwargs['pg'] > 100:
+                raise ValueError('PG has to be a percentage between 0 and 100, but given: %s' % kwargs['pg'])
+        except KeyError:
+            pass
+        
+        try:
+            if type(kwargs['vg']) not in [int, float]:
+                raise TypeError('VG percentage has to be either int or float, but given: %s' % str(type(kwargs['vg'])))
+            if kwargs['vg'] < 0 or kwargs['vg'] > 100:
+                raise ValueError('VG has to be a percentage between 0 and 100, but given: %s' % kwargs['vg'])
+        except KeyError:
+            pass
+        
+        try:
+            if kwargs['pg'] + kwargs['vg'] > 100:
+                raise ValueError('The sum of PG and VG can not be more than 100 percent, given: %sPG/%sVG' % (kwargs['pg'], kwargs['vg']))
+        except KeyError:
+            # So we don't have both PG and VG given
+            pass
+        
+        if type(nic) not in [int, float]:
+            raise TypeError('Nicotine concentration has to be either int or float, but given: %s' % str(type(nic)))
+        if nic < 0:
+            raise ValueError('Nicotine concentration has to be a positive number, but given: %s' % nic)
+        
+        if type(name) not in [str]:
+            raise TypeError('Name has to be a string, but given: %s' % str(type(name)))
         
         self.ml = ml
-        self.pg = max(0, min(pg, 100)) # clamp to 0..100
-        self.vg = 100 - self.pg
+
+        # Calculate PG/VG percentages and volumes
+        try:
+            self.pg = kwargs['pg']
+            self.vg = kwargs['vg']
+        except KeyError:
+            try:
+                self.pg = kwargs['pg']
+                self.vg = 100 - self.pg
+            except KeyError:
+                try:
+                    self.vg = kwargs['vg']
+                    self.pg = 100 - self.vg
+                    print('VG given')
+                except KeyError:
+                    # Neither PG nor VG was given, assume 50/50
+                    self.pg = self.vg = 50
+        
         self.total_pgml = self.ml * (self.pg / 100)
-        self.total_vgml = self.ml - self.total_pgml
+        self.total_vgml = self.ml * (self.vg / 100)
+        
+        # Calc nicotine mass
+        self.nic = nic
+        self.total_nicmg = self.nic * self.ml
+
+        self.name = name if name else type(self).__name__
+
+    def properties(self, ml=None):
+        return {
+            'ml': self.ml,
+            'pg': self.pg,
+            'vg': self.vg,
+            'nic': self.nic,
+            'name': self.name,
+            'type': type(self).__name__
+        }
+
+    def __repr__(self):
+        return '<%(type)s (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG, %(nic).1f mg/ml>' % self.properties()
+
+
+class Water(Liquid):
+    def __init__(self, ml, **kwargs):
+        # Require ml
+        if 'pg' in kwargs or 'vg' in kwargs or 'nic' in kwargs:
+            raise NameError('Can not have PG/VG percentage or Nic for Water.')
+        super().__init__(ml, pg=0, vg=0, nic=0, **kwargs)
+        try:
+            name
+        except NameError:
+            self.name = Water.__name__
     
-    def __str__(self):
-        return '%sml Base %sPG/%sVG' % (self.ml, self.pg, self.vg)
+    def __repr__(self):
+        return '<%(type)s (%(name)s): %(ml).1f ml>' % self.properties()
+
+
+class Base(Liquid):
+    def __init__(self, ml, **kwargs):
+        # Require ml
+        super().__init__(ml, **kwargs)
+        if self.pg + self.vg < 100:
+            raise ValueError('PG and VG sum for Base should be 100.')
+        try:
+            name
+        except NameError:
+            self.name = Base.__name__
+    
+    def __repr__(self):
+        return '<%(type)s (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG>' % self.properties()
 
 
 class NicBase(Liquid):
-    ''' Inherits Liquid. Adds nicotine concentration in mg/ml. '''
-    def __init__(self, ml, pg=50, nic=6):
-        if type(nic) not in [int, float]:
-            raise TypeError('Nicotine concentration has to be either int or float!')
-        
-        super().__init__(ml, pg)
-
-        self.nic = nic
-        if self.nic < 0:
-            raise ValueError('Nicotine concentration can not be smaller than 0!')
-        
-        # Calc nicotine mass
-        self.total_nicmg = nic * ml
+    def __init__(self, ml, nic, **kwargs):
+        # Require ml, nic
+        super().__init__(ml, nic=nic, **kwargs)
+        try:
+            name
+        except NameError:
+            self.name = NicBase.__name__
 
 
 class Aroma(Liquid):
-    ''' Inherits Liquid. Has name. '''
-    def __init__(self, ml, pg=50, name='Unnamed'):
-        if type(name) != str:
-            raise TypeError('Name has to be a string!')
-        
-        super().__init__(ml, pg)
-
-        self.name = name
+    def __init__(self, ml, name, **kwargs):
+        # Require ml, name
+        super().__init__(ml, name=name, **kwargs)
+    
+    def __repr__(self):
+        return '<Aroma (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG>' % self.properties()
 
 
-class Recipe(Liquid):
+class Mixture(Liquid):
+    ''' Used to mix liquids together. '''
     def __init__(self, *components):
         super().__init__(0)
 
-        self.nic = 0
-        self.total_nicmg = 0
-        self.aromas_ml = {}
-        self.aromas_percent = {}
+        self.components = []
 
-        # Add liquids if got as arguments
+        # Add components if got any as arguments
         if components:
-            for any_liquid in components:
-                self.add(any_liquid)
-    
+            for component in components:
+                self.add(component)
+
     def add(self, *components):
+        ''' Add liquids to the mixture. '''
         for component in components:
-            if type(component) not in [Liquid, NicBase, Aroma, Recipe]:
-                raise TypeError('Can only add Liquid, NicBase, Aroma and Mix types!')
-            
-            # Volume addition and PG/VG recalculation
-            self.ml += component.ml
-            self.total_pgml += component.total_pgml
-            self.total_vgml += component.total_vgml
-            if self.ml > 0:
-                self.pg = (self.total_pgml / self.ml) * 100
-                self.vg = 100 - self.pg
-            else:
-                self.pg, self.vg = 50, 50
+            if not isinstance(component, Liquid):
+                raise TypeError('Can only add Liquids, but given: %s' % str(type(component)))
+            if component.ml > 0:
+                if not isinstance(component, Mixture):
+                    # Got liquid, not a mixture
 
-            # NicBase only: Nicotine mass addition
-            if type(component) == NicBase:
-                self.total_nicmg += component.total_nicmg
-            
-            # Aroma only: Aroma names addition and per-aroma volume recalculation
-            elif type(component) == Aroma:
-                if component.name in self.aromas_ml:
-                    self.aromas_ml[component.name] += component.ml
+                    # Volume addition and PG/VG recalculation
+                    self.ml += component.ml
+                    self.total_pgml += component.total_pgml
+                    self.total_vgml += component.total_vgml
+                    self.pg = (self.total_pgml / self.ml) * 100
+                    self.vg = (self.total_vgml / self.ml) * 100
+
+                    # Nicotine mass addition
+                    self.total_nicmg += component.total_nicmg
+
+                    # Recalculate nicotine concentration in total volume
+                    self.nic = self.total_nicmg / self.ml
+
+                    self.components.append(component)
                 else:
-                    self.aromas_ml[component.name] = component.ml
-            
-            # Recipe only: Nicotine mass and aroma volume additions
-            elif type(component) == Recipe:
-                self.total_nicmg += component.total_nicmg
-                for aroma in component.aromas_volume:
-                    if aroma in self.aromas_ml:
-                        self.aromas_ml[aroma] += component.aromas_ml['aroma']
-                    else:
-                        self.aromas_ml[aroma] = component.aromas_ml['aroma']
-            
-            # Recalculate nicotine concentration in total volume
-            self.nic = self.total_nicmg / self.ml
-
-            # Recalculate aromas percentage in relation to total volume
-            for aroma in self.aromas_ml:
-                self.aromas_percent[aroma] = (self.aromas_ml[aroma] / self.ml) * 100
+                    # Got mixture
+                    self.add(*component.components)
+        
         return self
     
     def pour(self, amount):
-        ''' Returns amount of volume from the recipe with the same ratio of components '''
-        # TODO: Create this
-        pass
+        ''' Returns an instance of mixture of some amount with the same ratio of components. '''
+        if self.ml > 0:
+            return Mixture(*[component.__class__(component.ml * (amount / self.ml),
+                pg=component.pg,
+                vg=component.vg,
+                nic=component.nic,
+                name=component.name) for component in self.components])
+        else:
+            raise Exception('Can not pour from a 0 ml mixture.')
