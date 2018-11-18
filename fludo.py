@@ -2,10 +2,10 @@
 
 
 class Liquid:
-    ''' Liquid made of PG and VG (and/or water), optional nicotine concentration in mg/ml and optional name.
+    '''Liquid made of PG and VG (and/or water), optional nicotine concentration in mg/ml and optional name.
 If only PG or VG are given, the other is implicitly calculated to give 100 percent.
 If both are given, then the sum of the two can't exceed 100 percent, but if it's less, the rest is considered to be water.
-Use PG = VG = 0 to make pure water. '''
+Use PG = VG = 0 to make pure water.'''
     def __init__(self, ml=0, nic=0, name='', **kwargs):
         # Check arguments
         if type(ml) not in [int, float]:
