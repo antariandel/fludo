@@ -45,6 +45,7 @@ Use PG = VG = 0 to make pure water.'''
             raise TypeError('Name has to be a string, but given: %s' % str(type(name)))
         
         self.ml = ml
+        self.nic = nic
 
         # Calculate PG/VG percentages and volumes
         try:
@@ -63,14 +64,18 @@ Use PG = VG = 0 to make pure water.'''
                     # Neither PG nor VG was given, assume 50/50
                     self.pg = self.vg = 50
         
+        self.update_ml(self.ml)
+
+        self.name = name if name else type(self).__name__
+    
+    def update_ml(self, ml):
+        self.ml = ml
+
         self.total_pgml = self.ml * (self.pg / 100)
         self.total_vgml = self.ml * (self.vg / 100)
         
         # Calc nicotine mass
-        self.nic = nic
         self.total_nicmg = self.nic * self.ml
-
-        self.name = name if name else type(self).__name__
 
     def properties(self, ml=None):
         return {
