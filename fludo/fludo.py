@@ -224,6 +224,9 @@ class Mixture(Liquid):
         
         return self
     
+    def get_cost(self):
+        return sum([component.get_cost() for component in self.components])
+    
     def pour(self, amount):
         ''' Returns an instance of mixture of some amount with the same ratio of components. '''
         if self.ml > 0:
