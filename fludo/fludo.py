@@ -15,50 +15,66 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+class MixtureZeroVolumeError(Exception):
+    pass
+
+
+class LiquidPropertyError(Exception):
+    pass
+
+
+class MixtureComponentError(Exception):
+    pass
+
+
 class Liquid:
-    '''Liquid made of PG and VG (and/or water), optional nicotine concentration in mg/ml and optional name.
-If only PG or VG are given, the other is implicitly calculated to give 100 percent.
-If both are given, then the sum of the two can't exceed 100 percent, but if it's less, the rest is considered to be water.
-Use PG = VG = 0 to make pure water.'''
-    def __init__(self, ml=0, nic=0, name='', **kwargs):
+    '''
+    Liquid made of PG and VG (and/or water), optional nicotine concentration in mg/ml and optional
+    name. If only PG or VG are given, the other is implicitly calculated to give 100 percent.
+    If both are given, then the sum of the two can't exceed 100 percent, but if it's less, the rest
+    is considered to be water. Use PG = VG = 0 to make pure water.
+    '''
+
+    def __init__(self, ml=0, nic=0, name='', cost_per_ml=0, **kwargs):
         # Check arguments
         if type(ml) not in [int, float]:
-            raise TypeError('Volume (ml) has to be either int or float, but given: %s' % str(type(ml)))
+            raise LiquidPropertyError('Volume (ml) has to be either int or float, but given: %s' % str(type(ml)))
         if ml < 0:
-            raise ValueError('Volume (ml) has to be a positive number, but given: %s' % ml)
+            raise LiquidPropertyError('Volume (ml) has to be a positive number, but given: %s' % ml)
         
         try:
             if type(kwargs['pg']) not in [int, float]:
-                raise TypeError('PG percentage has to be either int or float, but given: %s' % str(type(kwargs['pg'])))
+                raise LiquidPropertyError('PG percentage has to be either int or float, but given: %s' % str(type(kwargs['pg'])))
             if kwargs['pg'] < 0 or kwargs['pg'] > 100:
-                raise ValueError('PG has to be a percentage between 0 and 100, but given: %s' % kwargs['pg'])
+                raise LiquidPropertyError('PG has to be a percentage between 0 and 100, but given: %s' % kwargs['pg'])
         except KeyError:
             pass
         
         try:
             if type(kwargs['vg']) not in [int, float]:
-                raise TypeError('VG percentage has to be either int or float, but given: %s' % str(type(kwargs['vg'])))
+                raise LiquidPropertyError('VG percentage has to be either int or float, but given: %s' % str(type(kwargs['vg'])))
             if kwargs['vg'] < 0 or kwargs['vg'] > 100:
-                raise ValueError('VG has to be a percentage between 0 and 100, but given: %s' % kwargs['vg'])
+                raise LiquidPropertyError('VG has to be a percentage between 0 and 100, but given: %s' % kwargs['vg'])
         except KeyError:
             pass
         
         try:
             if kwargs['pg'] + kwargs['vg'] > 100:
-                raise ValueError('The sum of PG and VG can not be more than 100 percent, given: %sPG/%sVG' % (kwargs['pg'], kwargs['vg']))
+                raise LiquidPropertyError('The sum of PG and VG can not be more than 100 percent, given: %sPG/%sVG' % (kwargs['pg'], kwargs['vg']))
         except KeyError:
             # So we don't have both PG and VG given
             pass
         
         if type(nic) not in [int, float]:
-            raise TypeError('Nicotine concentration has to be either int or float, but given: %s' % str(type(nic)))
+            raise LiquidPropertyError('Nicotine concentration has to be either int or float, but given: %s' % str(type(nic)))
         if nic < 0:
-            raise ValueError('Nicotine concentration has to be a positive number, but given: %s' % nic)
+            raise LiquidPropertyError('Nicotine concentration has to be a positive number, but given: %s' % nic)
         
         if type(name) not in [str]:
-            raise TypeError('Name has to be a string, but given: %s' % str(type(name)))
+            raise LiquidPropertyError('Name has to be a string, but given: %s' % str(type(name)))
         
         self.ml = ml
+        self.cost_per_ml = cost_per_ml
         self.nic = nic
 
         # Calculate PG/VG percentages and volumes
@@ -83,33 +99,44 @@ Use PG = VG = 0 to make pure water.'''
         self.name = name if name else type(self).__name__
     
     def update_ml(self, ml):
+        if type(ml) not in [int, float]:
+            raise LiquidPropertyError('Volume (ml) has to be either int or float, but given: %s' % str(type(ml)))
+        if ml < 0:
+            raise LiquidPropertyError('Volume (ml) has to be a positive number, but given: %s' % ml)
+        
         self.ml = ml
+        self.total_cost = self.ml * self.cost_per_ml
 
         self.total_pgml = self.ml * (self.pg / 100)
         self.total_vgml = self.ml * (self.vg / 100)
         
         # Calc nicotine mass
         self.total_nicmg = self.nic * self.ml
+    
+    def get_cost(self):
+        return self.ml * self.cost_per_ml
 
-    def properties(self, ml=None):
+    def get_properties(self):
         return {
             'ml': self.ml,
             'pg': self.pg,
             'vg': self.vg,
             'nic': self.nic,
+            'cost_per_ml': self.cost_per_ml,
+            'total_cost': self.get_cost(),
             'name': self.name,
             'type': type(self).__name__
         }
 
     def __repr__(self):
-        return '<%(type)s (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG, %(nic).1f mg/ml>' % self.properties()
+        return '<%(type)s (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG, %(nic).1f mg/ml>' % self.get_properties()
 
 
 class Water(Liquid):
     def __init__(self, ml, **kwargs):
         # Require ml
         if 'pg' in kwargs or 'vg' in kwargs or 'nic' in kwargs:
-            raise NameError('Can not have PG/VG percentage or Nic for Water.')
+            raise LiquidPropertyError('Can not have PG/VG percentage or Nic for Water.')
         super().__init__(ml, pg=0, vg=0, nic=0, **kwargs)
         try:
             name
@@ -117,7 +144,7 @@ class Water(Liquid):
             self.name = Water.__name__
     
     def __repr__(self):
-        return '<%(type)s (%(name)s): %(ml).1f ml>' % self.properties()
+        return '<%(type)s (%(name)s): %(ml).1f ml>' % self.get_properties()
 
 
 class Base(Liquid):
@@ -125,14 +152,14 @@ class Base(Liquid):
         # Require ml
         super().__init__(ml, **kwargs)
         if self.pg + self.vg < 100:
-            raise ValueError('PG and VG sum for Base should be 100.')
+            raise LiquidPropertyError('PG and VG sum for Base should be 100.')
         try:
             name
         except NameError:
             self.name = Base.__name__
     
     def __repr__(self):
-        return '<%(type)s (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG>' % self.properties()
+        return '<%(type)s (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG>' % self.get_properties()
 
 
 class NicBase(Liquid):
@@ -151,11 +178,12 @@ class Aroma(Liquid):
         super().__init__(ml, name=name, **kwargs)
     
     def __repr__(self):
-        return '<Aroma (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG>' % self.properties()
+        return '<Aroma (%(name)s): %(ml).1f ml, %(pg)dPG/%(vg)dVG>' % self.get_properties()
 
 
 class Mixture(Liquid):
     ''' Used to mix liquids together. '''
+
     def __init__(self, *components):
         super().__init__(0)
 
@@ -168,9 +196,10 @@ class Mixture(Liquid):
 
     def add(self, *components):
         ''' Add liquids to the mixture. '''
+
         for component in components:
             if not isinstance(component, Liquid):
-                raise TypeError('Can only add Liquids, but given: %s' % str(type(component)))
+                raise MixtureComponentError('Can only add Liquids, but given: %s' % str(type(component)))
             if component.ml > 0:
                 if not isinstance(component, Mixture):
                     # Got liquid, not a mixture
@@ -204,4 +233,4 @@ class Mixture(Liquid):
                 nic=component.nic,
                 name=component.name) for component in self.components])
         else:
-            raise Exception('Can not pour from a 0 ml mixture.')
+            raise MixtureZeroVolumeError('Can not pour from a 0 ml mixture.')

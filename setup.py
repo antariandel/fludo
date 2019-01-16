@@ -5,7 +5,7 @@ with open('README.md', 'r') as fh:
 
 setuptools.setup(
     name='fludo',
-    version='0.1.dev1',
+    version='0.1.dev2',
     author='Zsolt Nagy',
     author_email='nazsolti@outlook.com',
     description='A lightweight e-liquid calculator package for Python 3.',
