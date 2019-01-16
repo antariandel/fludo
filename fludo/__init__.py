@@ -15,5 +15,6 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 name = 'fludo'
+version = '1.0.dev4'
 
 from .fludo import *
