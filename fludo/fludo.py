@@ -105,7 +105,6 @@ class Liquid:
             raise LiquidPropertyError('Volume (ml) has to be a positive number, but given: %s' % ml)
         
         self.ml = ml
-        self.total_cost = self.ml * self.cost_per_ml
 
         self.total_pgml = self.ml * (self.pg / 100)
         self.total_vgml = self.ml * (self.vg / 100)
