@@ -89,7 +89,6 @@ class Liquid:
                 try:
                     self.vg = kwargs['vg']
                     self.pg = 100 - self.vg
-                    print('VG given')
                 except KeyError:
                     # Neither PG nor VG was given, assume 50/50
                     self.pg = self.vg = 50
